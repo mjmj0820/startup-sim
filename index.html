@@ -1,0 +1,712 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>창업 생존 시뮬레이터</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: 한 장의 '분기 보고서' 카드가 화면 가운데에 놓이고, 위에는 계기판(자금·평판·팀·성장)이 붙는 휴대폰 우선 구조 */
+:root{
+  --bg:#E9EEF3; --paper:#FBFCFD; --ink:#13233A; --muted:#5A6B80; --line:#CBD5E1;
+  --accent:#0F7B6C; --accent-ink:#FFFFFF; --stamp:#C8372D; --gold:#B7791F;
+  --good:#1F8A4C; --bad:#C8372D; --chip:#EEF3F7;
+  --f-display:"Do Hyeon","IBM Plex Sans KR",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1622; --paper:#162233; --ink:#E6EDF5; --muted:#93A3B8; --line:#2A3B52;
+  --accent:#3CC2AC; --accent-ink:#06201B; --stamp:#FF6B5E; --gold:#E3B04B;
+  --good:#4ED08A; --bad:#FF6B5E; --chip:#1D2C41; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1622; --paper:#162233; --ink:#E6EDF5; --muted:#93A3B8; --line:#2A3B52;
+  --accent:#3CC2AC; --accent-ink:#06201B; --stamp:#FF6B5E; --gold:#E3B04B;
+  --good:#4ED08A; --bad:#FF6B5E; --chip:#1D2C41; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+h1,h2,h3{font-family:var(--f-display);font-weight:400;line-height:1.25;text-wrap:balance;margin:0}
+p{margin:0}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.eyebrow{font-size:12px;letter-spacing:.08em;color:var(--muted);font-weight:500}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.btn{background:var(--accent);color:var(--accent-ink);border:0;border-radius:12px;padding:14px 18px;font-weight:700;font-size:17px;width:100%}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:20px}
+
+/* 시작 화면 */
+.hero{display:flex;flex-direction:column;gap:14px;padding-block:12px 4px}
+.hero h1{font-size:40px;letter-spacing:-.01em}
+.hero h1 em{font-style:normal;color:var(--accent)}
+.hero .lead{color:var(--muted)}
+.statline{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{border-top:2px solid var(--ink);padding-top:8px}
+.stat b{display:block;font-family:var(--f-num);font-size:28px;font-weight:600}
+.stat span{font-size:13px;color:var(--muted)}
+.src{font-size:12px;color:var(--muted)}
+.src a{color:inherit}
+
+/* 루트 선택 */
+.routes{display:flex;flex-direction:column;gap:10px}
+.route{display:grid;grid-template-columns:48px 1fr;gap:12px;align-items:start;text-align:left;background:var(--paper);border:1.5px solid var(--line);border-radius:14px;padding:14px}
+.route:hover{border-color:var(--accent)}
+.route .ic{font-size:30px;line-height:48px;text-align:center;background:var(--chip);border-radius:10px}
+.route h3{font-size:21px}
+.route p{font-size:14px;color:var(--muted)}
+.route .kv{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.kv span{font-size:12px;background:var(--chip);border-radius:6px;padding:2px 7px}
+label.field{display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--muted)}
+input[type=text]{font:inherit;font-size:17px;padding:12px 14px;border-radius:10px;border:1.5px solid var(--line);background:var(--paper);color:var(--ink)}
+
+/* 계기판 */
+.dash{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:6px 8px;display:flex;flex-direction:column;gap:8px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.dash-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.dash-top .co{font-family:var(--f-display);font-size:20px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.quarter{display:flex;gap:4px}
+.quarter i{width:14px;height:6px;border-radius:2px;background:var(--line)}
+.quarter i.done{background:var(--accent)}
+.quarter i.now{background:var(--gold)}
+.gauges{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:8px}
+.g{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:7px 9px;min-width:0}
+.g .lbl{font-size:11px;color:var(--muted);display:flex;justify-content:space-between}
+.g .val{font-family:var(--f-num);font-weight:600;font-size:15px;white-space:nowrap}
+.g .bar{height:4px;background:var(--chip);border-radius:2px;margin-top:4px;overflow:hidden}
+.g .bar i{display:block;height:100%;background:var(--accent);transition:width .4s}
+.g.low .bar i{background:var(--bad)}
+.g.cash .val.neg{color:var(--bad)}
+.g .fx{font-size:11px;color:var(--muted)}
+
+/* 장면 카드 */
+.scene h2{font-size:28px;margin-top:4px}
+.scene .text{margin-top:10px}
+.choices{display:flex;flex-direction:column;gap:10px;margin-top:18px}
+.choice{text-align:left;background:var(--chip);border:1.5px solid transparent;border-radius:12px;padding:13px 15px;font-weight:500;display:flex;gap:10px;align-items:flex-start}
+.choice:hover{border-color:var(--accent)}
+.choice .k{font-family:var(--f-num);font-weight:600;color:var(--accent)}
+.choice .risk{font-size:12px;color:var(--gold);font-weight:500;display:block}
+
+/* 결과 */
+.result .msg{font-size:17px;font-weight:500}
+.luck{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:6px;margin-bottom:6px}
+.luck.ok{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
+.luck.ng{background:color-mix(in srgb,var(--bad) 18%,transparent);color:var(--bad)}
+.deltas{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.deltas span{font-size:13px;padding:3px 9px;border-radius:999px;background:var(--chip);font-family:var(--f-num)}
+.deltas .up{color:var(--good)} .deltas .dn{color:var(--bad)}
+.ledger{margin-top:14px;border-top:1.5px solid var(--ink);font-size:14px}
+.ledger .row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line)}
+.ledger .row.total{font-weight:700;border-bottom:1.5px solid var(--ink)}
+.ledger .row .num.neg{color:var(--bad)} .ledger .row .num.pos{color:var(--good)}
+.ledger-title{font-size:12px;color:var(--muted);letter-spacing:.06em;margin-top:14px}
+.concept{margin-top:14px;background:var(--chip);border-radius:12px;padding:12px 14px;font-size:14px}
+.concept b{color:var(--accent)}
+
+/* 결말 */
+.ending{position:relative;overflow:hidden;text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center}
+.stampbox{width:132px;height:132px;border:5px double var(--stamp);border-radius:50%;display:grid;place-items:center;color:var(--stamp);
+  font-family:var(--f-display);font-size:34px;transform:rotate(-12deg);margin:6px auto 4px;animation:stamp .45s cubic-bezier(.2,1.6,.4,1) both}
+.ending.good .stampbox,.ending.great .stampbox{border-color:var(--accent);color:var(--accent)}
+.ending.mid .stampbox{border-color:var(--gold);color:var(--gold)}
+@keyframes stamp{from{transform:rotate(-12deg) scale(1.8);opacity:0}to{transform:rotate(-12deg) scale(1);opacity:1}}
+@media (prefers-reduced-motion:reduce){.stampbox{animation:none}.g .bar i{transition:none}}
+.ending h2{font-size:34px}
+.ending .story{color:var(--muted);max-width:40ch}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;text-align:left}
+.facts div{background:var(--chip);border-radius:10px;padding:10px 12px}
+.facts span{font-size:12px;color:var(--muted);display:block}
+.facts b{font-family:var(--f-num);font-weight:600;font-size:16px}
+.ceo{width:100%;border:1.5px dashed var(--line);border-radius:12px;padding:12px;text-align:left}
+.ceo b{font-family:var(--f-display);font-size:20px;font-weight:400}
+.path{width:100%;text-align:left;font-size:14px}
+.path ol{margin:6px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:3px}
+.path li span{color:var(--muted)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
+.toast{font-size:13px;color:var(--accent);min-height:1.2em}
+footer{font-size:12px;color:var(--muted);text-align:center}
+@media (max-width:400px){.gauges{grid-template-columns:1fr 1fr}.hero h1{font-size:34px}}
+</style>
+</head>
+<body>
+
+
+<div class="wrap" id="app"></div>
+
+<script>
+// ===== 창업 생존 시뮬레이터 : 데이터 + 엔진 =====
+// 단위: 자금(m)·매출·고정비는 '만원', 평판(r)·팀(t)·성장(g)은 0~100
+var GAME = (function () {
+  var TURNS = 8;
+
+  var CONCEPTS = {
+    hr: "인적자원관리 · 사람은 회사의 가장 큰 자산이에요. 다만 채용하면 매 분기 나가는 고정비가 늘어나요.",
+    roi: "마케팅 ROI · 광고비를 쓴 만큼 벌었는지 따져봐야 해요. 같은 돈을 써도 결과는 확률이에요.",
+    cost: "원가와 가격 결정 · 비용이 오르면 가격, 품질, 이익 중 무엇을 지킬지 골라야 해요.",
+    comp: "경쟁 전략 · 가격 깎기는 모두를 지치게 해요. 남과 다른 가치를 만드는 '차별화'가 오래가요.",
+    grant: "정부 지원사업 · 창업 초기의 중요한 자금줄이에요. 사업계획서는 내 사업을 점검하는 도구이기도 해요.",
+    crm: "고객 관계 관리(CRM) · 불만 고객에게 잘 대응하면 오히려 충성 고객이 되기도 해요.",
+    lev: "레버리지(부채) · 빌린 돈으로 버틸 시간을 벌지만, 이자는 매출과 상관없이 나가는 고정비예요.",
+    cofound: "공동창업 갈등 · 스타트업이 무너지는 흔한 이유예요. 역할과 지분을 처음부터 정해두는 게 중요해요.",
+    mvp: "MVP(최소기능제품) · 완벽하게 만들기보다 빨리 내놓고 시장 반응을 보는 것. 린 스타트업의 핵심이에요.",
+    pivot: "피벗 · 시장 반응을 보고 사업 방향을 바꾸는 것. 인스타그램도 처음엔 위치 공유 앱(Burbn)이었어요.",
+    dilution: "지분 희석 · 투자를 받으면 자금은 늘지만 회사에서 내 몫(지분)은 줄어들어요.",
+    bm: "수익 모델(BM) · 같은 서비스라도 돈을 버는 방식에 따라 결과가 크게 달라져요.",
+    location: "입지와 손익분기점 · 좋은 자리는 손님도 많지만 월세도 비싸요. 매출이 고정비를 넘는 지점이 손익분기점이에요.",
+    focus: "선택과 집중 · 모든 걸 다 하려 하면 비용과 피로만 늘어요. 잘하는 것에 자원을 모아야 해요.",
+    platform: "플랫폼 수수료 · 배달 앱은 손님을 데려다주지만, 매출의 일부를 수수료로 가져가요.",
+    expand: "사업 확장 · 확장은 매출을 키우지만 고정비와 위험도 함께 키워요.",
+    esg: "ESG 경영 · 환경·사회적 가치를 지키는 데는 돈이 들지만, 신뢰와 충성 고객이라는 자산이 생겨요.",
+    channel: "유통 채널 · 어디서 파느냐에 따라 만나는 고객, 수수료, 브랜드 이미지가 달라져요.",
+    greenwash: "그린워싱 · 실제보다 친환경인 척하는 것. 들키면 신뢰가 한 번에 무너져요.",
+    scale: "규모의 경제와 협상력 · 많이 팔면 단가를 낮출 수 있지만, 큰 거래처에 끌려다닐 위험도 있어요.",
+    impact: "임팩트 투자 · 수익과 함께 사회·환경적 성과를 따지는 투자예요.",
+    franchise: "프랜차이즈 · 이미 알려진 브랜드를 빌려 쓰는 대신, 본사 결정에 따라야 하는 부분이 많아요.",
+    wage: "인건비와 자동화 · 최저임금이 오르면 키오스크 같은 자동화를 고민하게 돼요. 사람이 주는 서비스와 비용 사이의 선택이에요.",
+    rent: "임대료와 고정비 · 장사가 잘돼도 월세가 오르면 이익이 사라질 수 있어요."
+  };
+
+  // ---------- 공통 사건 (3·5·7분기에 무작위로 등장) ----------
+  var COMMON = [
+    { id: "burnout", title: "팀이 지쳤어요", text: "몇 달째 야근이 이어지자 팀 분위기가 가라앉았어요. 한 명은 그만두겠다는 말까지 꺼냈어요.", concept: "hr",
+      choices: [
+        { label: "보너스와 휴가를 준다", e: { m: -300, t: 20 }, msg: "팀 분위기가 살아났어요. 돈은 들었지만 사람이 남았어요." },
+        { label: "조금만 더 버티자고 설득한다", e: { t: -15, g: 5 }, msg: "일은 진행됐지만 피로가 쌓이고 있어요." },
+        { label: "한 명을 더 채용한다", e: { m: -200, fixed: 120, t: 10 }, msg: "일이 나뉘었어요. 대신 매 분기 인건비 120만 원이 늘었어요." }
+      ] },
+    { id: "influencer", title: "인플루언서 협찬 제안", text: "팔로워 30만 명의 인플루언서가 500만 원을 주면 홍보해 주겠다고 연락했어요.", concept: "roi",
+      choices: [
+        { label: "계약한다 (500만 원)", chance: { p: 0.6,
+            ok: { e: { m: -500, r: 10, g: 10, base: 60 }, msg: "영상 반응이 좋았어요! 새 손님이 몰려와요." },
+            ng: { e: { m: -500, r: 2 }, msg: "조회수가 기대보다 낮았어요. 광고가 늘 성공하지는 않아요." } } },
+        { label: "SNS를 직접 운영한다", e: { t: -8, r: 6, g: 3 }, msg: "시간은 들지만 팔로워가 꾸준히 늘고 있어요." },
+        { label: "거절한다", e: { g: -3 }, msg: "돈은 아꼈지만 기회도 지나갔어요." }
+      ] },
+    { id: "cost", title: "원재료 가격 급등", text: "물가가 오르면서 재료비가 20%나 뛰었어요. 지금 가격으로는 남는 게 줄어요.", concept: "cost",
+      choices: [
+        { label: "판매 가격을 올린다", e: { price: 0.08, r: -8 }, msg: "이익은 지켰지만 일부 고객이 떠났어요." },
+        { label: "가격은 그대로, 손해를 감수한다", e: { m: -400, r: 4 }, msg: "고객은 만족하지만 잔고가 줄었어요." },
+        { label: "더 싼 공급처로 바꾼다", chance: { p: 0.5,
+            ok: { e: { m: -50 }, msg: "다행히 품질 차이가 거의 없었어요." },
+            ng: { e: { r: -15 }, msg: "품질이 떨어졌다는 불만이 쏟아졌어요." } } }
+      ] },
+    { id: "competitor", title: "경쟁 업체가 나타났다", text: "비슷한 상품을 파는 회사가 근처에 문을 열고 오픈 할인을 시작했어요.", concept: "comp",
+      choices: [
+        { label: "우리도 가격을 내린다", e: { price: -0.1, r: 4 }, msg: "손님은 지켰지만 하나 팔 때 남는 돈이 줄었어요." },
+        { label: "품질과 차별화에 투자한다", e: { m: -400, g: 8, r: 8 }, msg: "우리만의 강점이 생겼어요. 경쟁사와 비교되지 않아요." },
+        { label: "신경 쓰지 않는다", e: { r: -10, g: -5 }, msg: "손님 일부가 경쟁사로 넘어갔어요." }
+      ] },
+    { id: "grant", title: "청년창업 지원사업 공고", text: "정부가 청년 창업자에게 최대 1,000만 원을 지원한대요. 마감은 일주일 뒤예요.", concept: "grant",
+      choices: [
+        { label: "밤새 사업계획서를 쓴다", chance: { p: 0.5,
+            ok: { e: { m: 1000, t: -10, g: 3 }, msg: "선정됐어요! 지원금 1,000만 원이 들어왔어요." },
+            ng: { e: { t: -10, g: 3 }, msg: "아쉽게 떨어졌어요. 그래도 사업을 돌아보는 계기가 됐어요." } } },
+        { label: "본업에 집중한다", e: { r: 3 }, msg: "고객 응대에 집중했어요." }
+      ] },
+    { id: "review", title: "악성 리뷰 폭탄", text: "별점 1점 리뷰가 하루에 10개 넘게 달렸어요. 일부는 사실이고, 일부는 부풀려졌어요.", concept: "crm",
+      choices: [
+        { label: "공개 사과하고 보상한다", e: { m: -200, r: 10 }, msg: "진심 어린 대응에 오히려 칭찬 리뷰가 달렸어요." },
+        { label: "하나하나 반박 댓글을 단다", e: { r: -15, t: -5 }, msg: "다투는 댓글이 캡처되어 퍼졌어요." },
+        { label: "무시한다", e: { r: -6 }, msg: "리뷰를 본 손님 일부가 발길을 돌렸어요." }
+      ] },
+    { id: "loan", title: "은행의 대출 제안", text: "은행이 2,000만 원을 빌려주겠다고 해요. 이자는 분기마다 나가요.", concept: "lev",
+      choices: [
+        { label: "대출을 받는다", e: { m: 2000, fixed: 60 }, msg: "잔고가 든든해졌어요. 대신 매 분기 이자 60만 원이 나가요." },
+        { label: "거절한다", e: {}, msg: "빚 없이 가기로 했어요." }
+      ] },
+    { id: "partner", title: "공동창업자와의 갈등", text: "함께 시작한 친구와 사업 방향을 두고 크게 다퉜어요.", concept: "cofound",
+      choices: [
+        { label: "밤새 대화로 풀어낸다", e: { t: 8, g: -3 }, msg: "서로의 생각을 이해하게 됐어요." },
+        { label: "지분을 사들이고 혼자 간다", e: { m: -800, t: -8, g: 5 }, msg: "결정은 빨라졌지만 혼자 짊어질 일이 늘었어요." },
+        { label: "친구 의견을 따른다", e: { t: 5, g: -5, r: 3 }, msg: "관계는 지켰지만 내 계획은 미뤄졌어요." }
+      ] }
+  ];
+
+  // ---------- 사업 루트 ----------
+  var ROUTES = {
+    app: {
+      name: "캠퍼스 앱 창업", icon: "📱", tag: "대학생 · IT",
+      desc: "대학생이 만든 중고거래 앱. 돈은 적지만 크게 성장할 수 있어요.",
+      start: { m: 2000, r: 40, t: 70, g: 60, base: 150, fixed: 350 },
+      buyer: "대형 IT 기업",
+      scenes: [
+        { title: "첫 버전, 어떻게 만들까?", text: "아이디어는 있는데 개발할 시간과 돈이 부족해요.", concept: "mvp",
+          choices: [
+            { label: "핵심 기능만 담아 2주 만에 출시", e: { g: 12, r: -5 }, msg: "버그는 있지만 사용자 반응을 빨리 확인했어요." },
+            { label: "완벽하게 다듬어 6개월 뒤 출시", e: { m: -500, r: 10, g: -8 }, msg: "완성도는 높지만, 그사이 비슷한 앱이 먼저 나왔어요." },
+            { label: "외주 개발사에 맡긴다", e: { m: -900, g: 5, t: 5 }, msg: "편했지만 돈이 많이 들었어요. 수정할 때마다 추가 비용도 나와요." }
+          ] },
+        { title: "사용자가 늘지 않는다", text: "다운로드가 300명에서 멈췄어요. 대부분 한 번 쓰고 떠나요.", concept: "pivot",
+          choices: [
+            { label: "학교 축제에서 직접 홍보한다", e: { m: -150, g: 10, t: -8, r: 5 }, msg: "직접 만난 학생들이 친구를 데려오기 시작했어요." },
+            { label: "SNS 유료 광고를 돌린다", e: { m: -500, g: 12, base: 40 }, msg: "다운로드가 늘었어요. 남아 있는 사람이 얼마나 될지가 관건이에요." },
+            { label: "중고거래를 접고 '스터디 모임 매칭'으로 피벗", e: { g: 15, r: -8, t: -10, base: 80 }, flag: "pivot", msg: "기존 사용자 일부는 떠났지만, 새 서비스 반응이 뜨거워요!" }
+          ] },
+        null,
+        { title: "엔젤 투자자의 제안", text: "한 투자자가 '1억 원을 투자할 테니 회사 지분 20%를 달라'고 해요.", concept: "dilution",
+          choices: [
+            { label: "수락한다 (1억 원, 지분 20%)", e: { m: 10000, eq: 20, fixed: 600, g: 15, t: -5 }, flag: "invested", msg: "개발자 3명을 채용했어요. 이제 투자자에게 성과를 보여줘야 해요." },
+            { label: "지분 10%로 협상한다", chance: { p: 0.45,
+                ok: { e: { m: 5000, eq: 10, fixed: 300, g: 8 }, flag: "invested", msg: "5,000만 원에 지분 10%로 합의했어요!" },
+                ng: { e: { t: -5 }, msg: "투자자가 협상을 거절하고 떠났어요." } } },
+            { label: "거절하고 내 힘으로 간다", e: { t: 5, r: 3 }, msg: "회사는 온전히 내 것이에요. 대신 천천히 가야 해요." }
+          ] },
+        null,
+        { title: "어떻게 돈을 벌까?", text: "사용자는 늘었지만 아직 수익이 거의 없어요. 수익 모델을 정해야 해요.", concept: "bm",
+          choices: [
+            { label: "앱에 광고를 넣는다", e: { base: 250, r: -10 }, msg: "광고 수익이 생겼지만, '광고가 너무 많다'는 불만도 생겼어요." },
+            { label: "거래마다 수수료 3%를 받는다", e: { base: 350, g: -5, r: -3 }, msg: "안정적인 수익이 생겼어요. 일부 사용자는 수수료를 피해 떠났어요." },
+            { label: "프리미엄 구독 (월 4,900원)", chance: { p: 0.55,
+                ok: { e: { base: 500, r: 5 }, msg: "충성 사용자들이 구독을 시작했어요!" },
+                ng: { e: { base: 120, r: -3 }, msg: "돈을 내겠다는 사용자가 생각보다 적었어요." } } }
+          ] },
+        null
+      ]
+    },
+    cafe: {
+      name: "동네 카페 창업", icon: "☕", tag: "자영업 · 요식업",
+      desc: "회사를 그만두고 차린 작은 카페. 경쟁이 치열하고 월세가 무거워요.",
+      start: { m: 2500, r: 50, t: 60, g: 40, base: 900, fixed: 950 },
+      buyer: "커피 체인 본사",
+      scenes: [
+        { title: "가게 자리를 정하자", text: "퇴직금과 대출로 3,500만 원을 마련했어요. 어디에 문을 열까요?", concept: "location",
+          choices: [
+            { label: "역 앞 대로변 (월세 비쌈, 사람 많음)", e: { fixed: 300, base: 380, r: 3 }, msg: "지나가는 사람이 많아요. 대신 월세가 무거워요." },
+            { label: "조용한 주택가 골목 (월세 저렴)", e: { fixed: -200, base: -150, r: 5, t: 5 }, msg: "단골 위주로 천천히 자리를 잡아요." },
+            { label: "대학가 (학생 손님, 방학엔 한산)", e: { base: 100, g: 6, t: -3 }, msg: "학기 중엔 붐비지만 방학이 걱정이에요." }
+          ] },
+        { title: "메뉴 전략", text: "오픈 한 달째, 손님 반응이 애매해요. 메뉴를 어떻게 바꿀까요?", concept: "focus",
+          choices: [
+            { label: "시그니처 디저트를 개발한다", e: { m: -300, r: 12, base: 80 }, msg: "'그 디저트 파는 집'으로 소문이 났어요." },
+            { label: "싸고 양 많은 커피로 승부한다", e: { price: -0.15, base: 300, r: 3, t: -6 }, msg: "손님은 늘었지만 한 잔당 남는 돈이 줄었어요." },
+            { label: "메뉴를 30가지로 늘린다", e: { m: -200, t: -12, r: -3 }, msg: "재료 관리가 복잡해지고 버리는 재료가 늘었어요." }
+          ] },
+        null,
+        { title: "배달 앱 입점 제안", text: "배달 앱 영업 담당자가 입점을 권해요. 주문은 늘겠지만 수수료가 나가요.", concept: "platform",
+          choices: [
+            { label: "입점한다", e: { base: 300, fixed: 180, t: -8 }, msg: "주문이 늘었어요. 수수료와 포장비도 함께 늘었어요." },
+            { label: "매장 손님에게 집중한다", e: { r: 6 }, msg: "매장 분위기와 서비스가 좋아졌어요." },
+            { label: "포장 할인만 시작한다", e: { base: 100, price: -0.03, r: 3 }, msg: "수수료 없이 포장 손님이 조금 늘었어요." }
+          ] },
+        null,
+        { title: "가게가 자리를 잡았다", text: "단골이 생기고 매출이 안정됐어요. 다음 단계는 무엇일까요?", concept: "expand",
+          choices: [
+            { label: "대출받아 2호점을 연다", e: { m: -2500, base: 700, fixed: 650, t: -15, g: 15 }, msg: "매장이 두 개가 됐어요. 관리할 것도 두 배예요." },
+            { label: "1호점을 더 단단하게 다진다", e: { r: 10, t: 5 }, msg: "동네에서 가장 사랑받는 카페가 되어가고 있어요." },
+            { label: "투자받아 프랜차이즈 브랜드로 키운다", e: { m: 3000, eq: 30, g: 20, fixed: 300, t: -10, r: -5 }, flag: "invested", msg: "가맹점 모집을 시작했어요. 이제 투자자와 함께 가요." }
+          ] },
+        null
+      ]
+    },
+    eco: {
+      name: "친환경 생활용품", icon: "🌱", tag: "제조 · ESG",
+      desc: "고체 샴푸와 다회용품을 만드는 스타트업. 원가는 높지만 평판을 쌓기 좋아요.",
+      start: { m: 1500, r: 55, t: 65, g: 50, base: 430, fixed: 580 },
+      buyer: "생활용품 대기업",
+      scenes: [
+        { title: "원료를 정하자", text: "고체 샴푸를 만들 원료를 골라야 해요. 친환경 원료는 두 배 비싸요.", concept: "esg",
+          choices: [
+            { label: "친환경 인증 원료만 쓴다", e: { m: -400, r: 10, price: 0.05 }, flag: "eco", msg: "원가는 비싸졌지만, 제품에 당당하게 '친환경'이라고 쓸 수 있어요." },
+            { label: "일반 원료에 포장만 친환경으로", e: { base: 80 }, flag: "greenwash", msg: "원가는 아꼈어요. 그런데 '친환경 제품'이라고 광고해도 될까요?" },
+            { label: "일부만 친환경 원료, 사실대로 표기", e: { m: -150, r: 5 }, msg: "솔직한 표기에 고객 신뢰가 쌓였어요." }
+          ] },
+        { title: "첫 판매는 어디서?", text: "제품이 나왔어요. 어디서 처음 팔아볼까요?", concept: "channel",
+          choices: [
+            { label: "크라우드펀딩에 올린다", chance: { p: 0.55,
+                ok: { e: { m: 1500, r: 10, g: 10 }, msg: "목표 금액의 320%를 달성했어요!" },
+                ng: { e: { r: -3 }, msg: "목표 금액의 40%에서 멈췄어요." } } },
+            { label: "자체 온라인몰을 연다", e: { m: -300, g: 6, base: 60 }, msg: "수수료는 없지만 손님을 직접 모아야 해요." },
+            { label: "제로웨이스트 가게에 입점한다", e: { r: 8, base: 120, fixed: 50 }, msg: "가치에 공감하는 손님들을 만났어요." }
+          ] },
+        null,
+        [
+          { when: "greenwash", title: "그린워싱 의혹 보도", text: "'친환경이라더니 원료는 일반 제품'이라는 기사가 났어요.", concept: "greenwash",
+            choices: [
+              { label: "사과하고 원료를 전부 바꾼다", e: { m: -800, r: -5 }, flag: "eco", unflag: "greenwash", msg: "비싼 대가를 치렀지만 다시 믿어주는 고객이 생겼어요." },
+              { label: "광고 문구만 슬쩍 바꾼다", e: { r: -20 }, msg: "고객들은 눈치챘어요. 신뢰가 크게 떨어졌어요." },
+              { label: "'법적 문제 없다'고 해명한다", e: { r: -25, t: -5 }, msg: "해명이 오히려 불매운동에 불을 붙였어요." }
+            ] },
+          { title: "대형마트 납품 제안", text: "전국 대형마트에 납품하자는 제안이 왔어요. 대신 단가를 30% 낮춰야 해요.", concept: "scale",
+            choices: [
+              { label: "수락한다", e: { base: 500, price: -0.1, t: -10, g: 12 }, msg: "전국에서 우리 제품을 볼 수 있게 됐어요. 남는 돈은 얇아요." },
+              { label: "거절하고 브랜드 가치를 지킨다", e: { r: 6 }, msg: "'어디서나 파는 제품'이 되지 않기로 했어요." },
+              { label: "일부 매장에서만 시범 판매한다", e: { base: 180, g: 5 }, msg: "조심스럽게 시장을 넓혔어요." }
+            ] }
+        ],
+        null,
+        { title: "임팩트 투자사의 제안", text: "사회적 가치를 중시하는 투자사가 7,000만 원에 지분 15%를 달라고 해요.", concept: "impact",
+          choices: [
+            { label: "수락한다", e: { m: 7000, eq: 15, fixed: 350, g: 12 }, flag: "invested", msg: "생산 설비를 늘렸어요. 투자사는 환경 성과 보고서도 원해요." },
+            { label: "거절한다", e: { t: 3 }, msg: "지금 속도를 지키기로 했어요." },
+            { label: "대신 지역 취약계층 고용 협약을 맺는다", e: { r: 12, fixed: 100, t: 5 }, msg: "지역 사회에서 '착한 기업'으로 알려지기 시작했어요." }
+          ] },
+        null
+      ]
+    },
+    fran: {
+      name: "치킨 프랜차이즈 가맹점", icon: "🍗", tag: "가맹사업 · 요식업",
+      desc: "유명 브랜드 간판을 달고 시작해요. 안정적이지만 내 마음대로 할 수 없는 게 많아요.",
+      start: { m: 2500, r: 50, t: 55, g: 30, base: 1650, fixed: 1350 },
+      buyer: "다른 예비 점주",
+      scenes: [
+        { title: "본사의 인테리어 교체 요구", text: "오픈 1년 만에 본사가 인테리어를 새로 하래요. 비용은 800만 원이에요.", concept: "franchise",
+          choices: [
+            { label: "본사 요구를 따른다", e: { m: -800, r: 5 }, msg: "가게가 깔끔해졌지만 통장이 가벼워졌어요." },
+            { label: "거부한다", chance: { p: 0.5,
+                ok: { e: {}, msg: "본사가 한발 물러섰어요." },
+                ng: { e: { r: -5, base: -120 }, msg: "본사가 신메뉴 공급을 늦추기 시작했어요." } } },
+            { label: "다른 점주들과 함께 협상한다", e: { m: -400, t: -5 }, msg: "점주들이 힘을 모아 본사가 비용 절반을 내기로 했어요." }
+          ] },
+        { title: "본사 신메뉴 출시", text: "본사가 신메뉴 재료를 정해진 만큼 의무로 사라고 해요.", concept: "franchise",
+          choices: [
+            { label: "정해진 만큼 산다", e: { m: -300, base: 150 }, msg: "신메뉴 광고 덕분에 주문이 늘었어요." },
+            { label: "최소 수량만 산다", e: { r: -4 }, msg: "품절이 잦아 손님들이 아쉬워했어요." },
+            { label: "우리 가게만의 사이드 메뉴를 제안한다", chance: { p: 0.5,
+                ok: { e: { r: 10, base: 120 }, msg: "본사가 승인했어요! 동네 명물 메뉴가 됐어요." },
+                ng: { e: { r: -3, t: -3 }, msg: "본사가 승인하지 않았어요." } } }
+          ] },
+        null,
+        { title: "최저임금 인상", text: "내년 최저임금이 올라 아르바이트 인건비가 늘어나요.", concept: "wage",
+          choices: [
+            { label: "그대로 올려준다", e: { fixed: 150, t: 10 }, msg: "직원들이 오래 일하고 싶어 해요." },
+            { label: "키오스크를 들여놓는다", e: { m: -600, fixed: -80, r: -5 }, msg: "인건비는 줄었지만, 어르신 손님들이 불편해해요." },
+            { label: "사장이 직접 더 일한다", e: { t: -20 }, msg: "인건비는 아꼈지만 몸이 버티기 힘들어요." }
+          ] },
+        null,
+        { title: "건물주의 월세 인상 통보", text: "건물주가 다음 달부터 월세를 20% 올리겠대요.", concept: "rent",
+          choices: [
+            { label: "받아들인다", e: { fixed: 200 }, msg: "매 분기 고정비가 200만 원 늘었어요." },
+            { label: "근처 상가로 옮긴다", e: { m: -1500, r: -8, fixed: -50 }, msg: "이사 비용이 들었고, 단골 일부를 잃었어요." },
+            { label: "협상한다", chance: { p: 0.5,
+                ok: { e: { fixed: 80 }, msg: "10% 인상으로 합의했어요." },
+                ng: { e: { fixed: 200, t: -5 }, msg: "협상이 결렬됐어요. 20% 그대로예요." } } }
+          ] },
+        null
+      ]
+    }
+  };
+
+  var ENDINGS = {
+    bankrupt: { icon: "💥", title: "파산", stamp: "파산", tone: "bad",
+      story: "통장 잔고가 바닥났어요. 매출이 있어도 나가는 돈을 감당하지 못하면 회사는 멈춰요.",
+      lesson: "현금흐름 · 회사는 적자보다 '현금이 떨어질 때' 망해요. 실제로 신생기업 3곳 중 1곳 이상은 1년 안에 사라져요(1년 생존율 63.9%)." },
+    burnout: { icon: "🔥", title: "번아웃", stamp: "중단", tone: "bad",
+      story: "대표와 팀 모두 지쳐 더는 회사를 이끌 수 없게 됐어요. 숫자는 버텼지만 사람이 버티지 못했어요.",
+      lesson: "지속 가능한 경영 · 대표와 팀의 체력과 사기도 돈만큼 중요한 경영 자원이에요." },
+    mna: { icon: "🤝", title: "성공적인 매각", stamp: "엑시트", tone: "good",
+      story: "회사를 팔아 투자금을 회수했어요. 창업자에게 '엑시트(Exit)'는 또 하나의 성공이에요.",
+      lesson: "M&A와 기업가치 · 회사의 가치는 지금 가진 돈뿐 아니라 앞으로 벌 돈과 성장성으로 매겨져요." },
+    ipo: { icon: "🚀", title: "상장 성공", stamp: "상장", tone: "great",
+      story: "빠른 성장과 투자 유치 끝에 주식시장 상장을 준비하게 됐어요. 이제 누구나 우리 회사의 주주가 될 수 있어요.",
+      lesson: "IPO(기업공개) · 주식시장에 회사를 공개해 더 큰 자금을 모으는 것. 대신 투명하게 경영 성과를 공개해야 해요." },
+    esg: { icon: "🌍", title: "착한 기업 인증", stamp: "인증", tone: "great",
+      story: "환경과 사회를 생각한 선택이 쌓여, 고객들이 일부러 찾아와 사 주는 브랜드가 됐어요.",
+      lesson: "ESG 경영 · 처음엔 비용처럼 보여도, 신뢰는 시간이 지날수록 커지는 자산이에요." },
+    pivot: { icon: "🔄", title: "피벗 대성공", stamp: "전환", tone: "great",
+      story: "처음 계획을 과감히 버리고 방향을 바꾼 것이 신의 한 수가 됐어요.",
+      lesson: "피벗 · 실패를 빨리 인정하고 시장이 원하는 쪽으로 방향을 트는 것도 창업가의 능력이에요." },
+    stable: { icon: "🏆", title: "탄탄한 흑자 기업", stamp: "흑자", tone: "good",
+      story: "화려하진 않아도 손님이 꾸준히 찾고, 매 분기 돈이 남는 회사가 됐어요.",
+      lesson: "지속 가능한 이익 · 매출이 고정비를 꾸준히 넘는 것(손익분기점 돌파)이 오래 살아남는 비결이에요." },
+    survive: { icon: "😮‍💨", title: "간신히 생존", stamp: "생존", tone: "mid",
+      story: "2년을 버텨냈어요. 큰돈을 벌지는 못했지만, 문을 닫지 않은 것만으로도 의미가 있어요.",
+      lesson: "생존이 곧 경쟁력 · 우리나라 신생기업의 5년 생존율은 36.5%예요. 버티는 것 자체가 쉽지 않아요." }
+  };
+
+  // ---------- 엔진 ----------
+  function clamp(v) { return Math.max(0, Math.min(100, v)); }
+
+  function newGame(routeKey, rng, company) {
+    var R = ROUTES[routeKey], s = R.start;
+    rng = rng || Math.random;
+    // 3·5·7분기에 쓸 공통 사건 3개 고르기 (중복 없음)
+    var pool = COMMON.slice(), picks = [];
+    for (var i = 0; i < 3; i++) picks.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+    return {
+      route: routeKey, company: company || "내 회사", turn: 1,
+      m: s.m, r: s.r, t: s.t, g: s.g, base: s.base, fixed: s.fixed, price: 1, eq: 100,
+      flags: {}, common: picks, log: [], ledger: [], over: null, rng: rng
+    };
+  }
+
+  function sceneFor(st) {
+    if (st.turn === TURNS) return finalScene(st);
+    var slot = ROUTES[st.route].scenes[st.turn - 1];
+    if (slot === null) {
+      var idx = st.turn === 3 ? 0 : st.turn === 5 ? 1 : 2;
+      return st.common[idx];
+    }
+    if (Array.isArray(slot)) {
+      for (var i = 0; i < slot.length; i++) if (!slot[i].when || st.flags[slot[i].when]) return slot[i];
+    }
+    return slot;
+  }
+
+  function revenue(st) {
+    return Math.round(st.base * st.price * (0.5 + st.r / 100) * (0.6 + st.g / 125));
+  }
+
+  function valuation(st) {
+    var annual = revenue(st) * 4;
+    var profit = Math.max(0, revenue(st) - st.fixed) * 4;
+    return Math.max(0, Math.round((Math.max(0, st.m) + profit * 3 + annual * 0.5 * (st.g / 50)) / 100) * 100);
+  }
+
+  function finalScene(st) {
+    var R = ROUTES[st.route], offer = valuation(st);
+    return { id: "final", title: "인수 제안이 왔다", concept: null, offer: offer,
+      text: R.buyer + "이(가) 회사를 " + fmt(offer) + "에 사고 싶대요. 지분 " + st.eq + "%를 가진 내 몫은 " + fmt(Math.round(offer * st.eq / 100)) + "이에요.",
+      choices: [
+        { label: "판다 (엑시트)", final: "sell" },
+        { label: "거절하고 계속 키운다", final: "keep" }
+      ] };
+  }
+
+  function applyEffects(st, e) {
+    var d = {};
+    ["m", "r", "t", "g", "base", "fixed", "price", "eq"].forEach(function (k) {
+      if (e[k] === undefined) return;
+      d[k] = e[k];
+      if (k === "eq") st.eq = Math.max(1, st.eq - e[k]);
+      else if (k === "price") st.price = Math.max(0.6, Math.round((st.price + e[k]) * 100) / 100);
+      else if (k === "r" || k === "t" || k === "g") st[k] = clamp(st[k] + e[k]);
+      else if (k === "base" || k === "fixed") st[k] = Math.max(0, st[k] + e[k]);
+      else st[k] += e[k];
+    });
+    return d;
+  }
+
+  // 선택 → 결과 객체 반환
+  function choose(st, idx) {
+    var sc = sceneFor(st), c = sc.choices[idx], out = { scene: sc, choice: c };
+    if (c.final) {
+      st.log.push({ turn: st.turn, title: sc.title, label: c.label });
+      if (c.final === "sell") { st.over = { key: "mna", offer: sc.offer, mine: Math.round(sc.offer * st.eq / 100) }; }
+      else st.over = { key: evaluate(st), offer: null };
+      out.ending = st.over;
+      return out;
+    }
+    var res = c;
+    if (c.chance) { var hit = st.rng() < c.chance.p; res = hit ? c.chance.ok : c.chance.ng; out.lucky = hit; }
+    var flag = res.flag || c.flag;
+    if (flag) st.flags[flag] = true;
+    if (res.unflag) delete st.flags[res.unflag];
+    out.delta = applyEffects(st, res.e || {});
+    out.msg = res.msg;
+    // 분기 결산
+    st.t = clamp(st.t - 3); // 매 분기 쌓이는 피로
+    var rev = revenue(st), profit = rev - st.fixed;
+    st.m += profit;
+    out.ledger = { rev: rev, fixed: st.fixed, profit: profit, cash: st.m };
+    st.ledger.push(out.ledger);
+    st.log.push({ turn: st.turn, title: sc.title, label: c.label, lucky: out.lucky });
+    if (st.m <= 0) st.over = { key: "bankrupt" };
+    else if (st.t <= 0) st.over = { key: "burnout" };
+    if (st.over) out.ending = st.over;
+    else st.turn++;
+    return out;
+  }
+
+  function evaluate(st) {
+    var s = ROUTES[st.route].start;
+    if (st.flags.invested && st.g >= 75 && st.r >= 50) return "ipo";
+    if (st.flags.eco && st.r >= 75) return "esg";
+    if (st.flags.pivot && st.g >= 60) return "pivot";
+    if (st.m >= s.m * 1.2 && st.r >= 58 && revenue(st) > st.fixed) return "stable";
+    return "survive";
+  }
+
+  function ceoType(st) {
+    var arr = [
+      { k: "r", v: st.r, name: "고객 중심형 CEO", d: "손님의 마음을 가장 먼저 생각했어요." },
+      { k: "t", v: st.t, name: "사람 중심형 CEO", d: "팀을 아끼며 함께 가는 길을 택했어요." },
+      { k: "g", v: st.g, name: "공격적 성장형 CEO", d: "위험을 감수하고 빠르게 키우는 쪽을 골랐어요." }
+    ];
+    arr.sort(function (a, b) { return b.v - a.v; });
+    var startM = ROUTES[st.route].start.m;
+    if (st.m >= startM * 2 && arr[0].v < 70) return { name: "알뜰한 재무형 CEO", d: "돈의 흐름을 꼼꼼히 챙겼어요." };
+    return arr[0];
+  }
+
+  function fmt(v) {
+    var neg = v < 0; v = Math.abs(Math.round(v));
+    var eok = Math.floor(v / 10000), man = v % 10000, s;
+    if (eok > 0) s = eok + "억" + (man ? " " + man.toLocaleString("ko-KR") + "만 원" : " 원");
+    else s = man.toLocaleString("ko-KR") + "만 원";
+    return (neg ? "-" : "") + s;
+  }
+
+  return { TURNS: TURNS, ROUTES: ROUTES, COMMON: COMMON, ENDINGS: ENDINGS, CONCEPTS: CONCEPTS,
+    newGame: newGame, sceneFor: sceneFor, choose: choose, revenue: revenue, valuation: valuation,
+    ceoType: ceoType, fmt: fmt, evaluate: evaluate };
+})();
+if (typeof module !== "undefined") module.exports = GAME;
+
+</script>
+<script>
+(function(){
+  var G = GAME, app = document.getElementById("app"), st = null, pending = null;
+  var LABEL = { m:"자금", r:"평판", t:"팀", g:"성장", base:"기본 매출", fixed:"고정비", price:"가격", eq:"내 지분" };
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+  function qLabel(n){ var y = Math.ceil(n/4), q = ((n-1)%4)+1; return y+"년차 "+q+"분기"; }
+  function top(){ window.scrollTo({top:0,behavior:"instant"in window?"instant":"auto"}); }
+
+  // ---------- 시작 ----------
+  function renderIntro(){
+    st = null;
+    app.innerHTML =
+      '<section class="hero">'+
+        '<span class="eyebrow">모의 창업 시뮬레이션 · 8분기</span>'+
+        '<h1>내 회사는 <em>2년 뒤에도</em> 살아 있을까?</h1>'+
+        '<p class="lead">사업 루트를 고르고, 매 분기 찾아오는 선택의 순간에 결정을 내리세요. 선택이 쌓여 파산부터 상장까지 8가지 결말로 이어져요.</p>'+
+        '<div class="statline">'+
+          '<div class="stat"><b>63.9%</b><span>신생기업 1년 생존율</span></div>'+
+          '<div class="stat"><b>36.5%</b><span>신생기업 5년 생존율</span></div>'+
+        '</div>'+
+        '<p class="src">출처: 국가데이터처 2025년 기업생멸행정통계(잠정), <a href="https://eiec.kdi.re.kr/policy/materialView.do?num=288411" target="_blank" rel="noopener">KDI 경제정보센터</a></p>'+
+      '</section>'+
+      '<button class="btn" id="go">창업하러 가기</button>'+
+      '<footer>면목고등학교 학생주도 프로젝트 봉사활동 · 청소년 진로 체험용</footer>';
+    document.getElementById("go").onclick = renderRoutes;
+    top();
+  }
+
+  // ---------- 루트 선택 ----------
+  function renderRoutes(){
+    var html = '<div><span class="eyebrow">STEP 1</span><h2 style="font-size:30px">어떤 사업으로 시작할까요?</h2></div>'+
+      '<label class="field" for="co">회사(가게) 이름<input type="text" id="co" maxlength="14" placeholder="예: 민준상회" autocomplete="off"></label>'+
+      '<div class="routes">';
+    Object.keys(G.ROUTES).forEach(function(k){
+      var R = G.ROUTES[k], s = R.start;
+      html += '<button class="route" data-k="'+k+'"><span class="ic" aria-hidden="true">'+R.icon+'</span><span>'+
+        '<span class="eyebrow">'+esc(R.tag)+'</span><h3>'+esc(R.name)+'</h3><p>'+esc(R.desc)+'</p>'+
+        '<span class="kv"><span>시작 자금 '+G.fmt(s.m)+'</span><span>분기 고정비 '+G.fmt(s.fixed)+'</span><span>성장성 '+s.g+'</span></span>'+
+        '</span></button>';
+    });
+    html += '</div><button class="btn ghost" id="back">처음으로</button>';
+    app.innerHTML = html;
+    app.querySelectorAll(".route").forEach(function(b){
+      b.onclick = function(){
+        var name = document.getElementById("co").value.trim() || G.ROUTES[b.dataset.k].name.split(" ")[0]+" 1호";
+        st = G.newGame(b.dataset.k, Math.random, name);
+        renderScene();
+      };
+    });
+    document.getElementById("back").onclick = renderIntro;
+    top();
+  }
+
+  // ---------- 계기판 ----------
+  function dash(){
+    var q = ""; for (var i=1;i<=G.TURNS;i++) q += '<i class="'+(i<st.turn?"done":i===st.turn?"now":"")+'"></i>';
+    function gauge(key,icon,name){ var v = st[key];
+      return '<div class="g'+(v<25?" low":"")+'"><div class="lbl"><span>'+icon+' '+name+'</span></div><div class="val num">'+v+'</div><div class="bar"><i style="width:'+v+'%"></i></div></div>'; }
+    return '<div class="dash"><div class="dash-top"><span class="co">'+G.ROUTES[st.route].icon+' '+esc(st.company)+'</span><span class="quarter" aria-label="'+st.turn+'분기">'+q+'</span></div>'+
+      '<div class="gauges">'+
+        '<div class="g cash"><div class="lbl"><span>💰 자금</span></div><div class="val num'+(st.m<0?" neg":"")+'">'+G.fmt(st.m)+'</div><div class="fx">고정비 '+G.fmt(st.fixed)+'/분기</div></div>'+
+        gauge("r","⭐","평판")+gauge("t","👥","팀")+gauge("g","📈","성장")+
+      '</div></div>';
+  }
+
+  // ---------- 장면 ----------
+  function renderScene(){
+    var sc = G.sceneFor(st);
+    var html = dash()+'<article class="card scene"><span class="eyebrow">'+qLabel(st.turn)+(st.turn===G.TURNS?" · 마지막 결정":"")+'</span>'+
+      '<h2>'+esc(sc.title)+'</h2><p class="text">'+esc(sc.text)+'</p><div class="choices">';
+    sc.choices.forEach(function(c,i){
+      html += '<button class="choice" data-i="'+i+'"><span class="k">'+"ABC"[i]+'</span><span>'+esc(c.label)+
+        '</span></button>';
+    });
+    html += '</div></article>';
+    app.innerHTML = html;
+    app.querySelectorAll(".choice").forEach(function(b){ b.onclick = function(){ onChoose(+b.dataset.i); }; });
+    top();
+  }
+
+  function onChoose(i){
+    var res = G.choose(st, i);
+    if (res.choice.final) return renderEnding();
+    renderResult(res);
+  }
+
+  function deltaChips(d){
+    var out = "";
+    Object.keys(d).forEach(function(k){
+      var v = d[k]; if (!v) return;
+      var good = k==="fixed"||k==="eq" ? v<0 : v>0, txt;
+      if (k==="m"||k==="base"||k==="fixed") txt = (v>0?"+":"")+G.fmt(v);
+      else if (k==="price") txt = (v>0?"+":"")+Math.round(v*100)+"%";
+      else if (k==="eq") txt = "-"+v+"%p";
+      else txt = (v>0?"+":"")+v;
+      out += '<span class="'+(good?"up":"dn")+'">'+LABEL[k]+' '+txt+'</span>';
+    });
+    return out ? '<div class="deltas">'+out+'</div>' : '';
+  }
+
+  function renderResult(res){
+    var L = res.ledger, sc = res.scene;
+    var html = dash()+'<article class="card result"><span class="eyebrow">'+qLabel(L ? st.ledger.length : st.turn)+' 결과</span>'+
+      (res.lucky===true?'<div><span class="luck ok">운이 따랐어요</span></div>':res.lucky===false?'<div><span class="luck ng">운이 따르지 않았어요</span></div>':'')+
+      '<p class="msg">'+esc(res.msg)+'</p>'+deltaChips(res.delta)+
+      '<div class="ledger-title">분기 결산 (손익계산서 요약)</div><div class="ledger">'+
+        '<div class="row"><span>매출액</span><span class="num">'+G.fmt(L.rev)+'</span></div>'+
+        '<div class="row"><span>고정비 (월세·인건비·이자)</span><span class="num">-'+G.fmt(L.fixed)+'</span></div>'+
+        '<div class="row total"><span>영업이익</span><span class="num '+(L.profit<0?"neg":"pos")+'">'+(L.profit>0?"+":"")+G.fmt(L.profit)+'</span></div>'+
+        '<div class="row"><span>남은 자금</span><span class="num'+(L.cash<0?" neg":"")+'">'+G.fmt(L.cash)+'</span></div>'+
+      '</div>'+
+      (sc.concept?'<div class="concept"><b>💡 '+esc(G.CONCEPTS[sc.concept].split(" · ")[0])+'</b><br>'+esc(G.CONCEPTS[sc.concept].split(" · ")[1])+'</div>':'')+
+      '<div style="margin-top:16px"><button class="btn" id="next">'+(res.ending?"결말 보기":"다음 분기로")+'</button></div></article>';
+    app.innerHTML = html;
+    document.getElementById("next").onclick = res.ending ? renderEnding : renderScene;
+    top();
+  }
+
+  // ---------- 결말 ----------
+  function renderEnding(){
+    var o = st.over, E = G.ENDINGS[o.key], R = G.ROUTES[st.route], ceo = G.ceoType(st);
+    var story = E.story;
+    if (o.key==="survive" && st.m < R.start.m*0.5) story = "2년을 버텼지만 자금이 시작할 때의 절반도 남지 않았어요. 다음 분기가 아슬아슬해요.";
+    var value = o.key==="mna" ? o.offer : G.valuation(st);
+    var mine = o.key==="mna" ? o.mine : Math.round(value*st.eq/100);
+    var dead = o.key==="bankrupt"||o.key==="burnout";
+    var html = '<article class="card ending '+E.tone+'">'+
+      '<span class="eyebrow">'+esc(st.company)+' · '+esc(R.name)+' · '+st.log.length+'분기 운영</span>'+
+      '<div class="stampbox" aria-hidden="true">'+E.stamp+'</div>'+
+      '<h2>'+E.icon+' '+E.title+'</h2><p class="story">'+esc(story)+'</p>'+
+      '<div class="facts">'+
+        '<div><span>남은 자금</span><b>'+G.fmt(st.m)+'</b></div>'+
+        '<div><span>내 지분</span><b>'+st.eq+'%</b></div>'+
+        '<div><span>'+(o.key==="mna"?"매각 금액":"추정 기업가치")+'</span><b>'+(dead?"0원":G.fmt(value))+'</b></div>'+
+        '<div><span>내 몫</span><b>'+(dead?"0원":G.fmt(mine))+'</b></div>'+
+      '</div>'+
+      '<div class="ceo"><span class="eyebrow">나의 경영 스타일</span><br><b>'+esc(ceo.name)+'</b><p style="font-size:14px;color:var(--muted)">'+esc(ceo.d)+'</p></div>'+
+      '<div class="concept" style="text-align:left;width:100%"><b>💡 '+esc(E.lesson.split(" · ")[0])+'</b><br>'+esc(E.lesson.split(" · ")[1])+'</div>'+
+      '<div class="path"><span class="eyebrow">내가 걸어온 길</span><ol>'+
+        st.log.map(function(l){return '<li><span>'+esc(l.title)+'</span> → '+esc(l.label)+'</li>';}).join("")+
+      '</ol></div>'+
+      '<div class="row2"><button class="btn" id="again">다시 도전</button><button class="btn ghost" id="copy">결과 복사</button></div>'+
+      '<p class="toast" id="toast" role="status"></p>'+
+      '<p class="src">결말은 8가지예요: 파산 · 번아웃 · 매각 · 상장 · 착한 기업 · 피벗 · 흑자 기업 · 생존. 다른 루트와 선택으로 모두 찾아보세요.</p>'+
+      '</article>';
+    app.innerHTML = html;
+    document.getElementById("again").onclick = renderRoutes;
+    document.getElementById("copy").onclick = function(){
+      var t = "[창업 생존 시뮬레이터] "+st.company+"("+R.name+") → "+E.icon+" "+E.title+" / "+ceo.name+" / 남은 자금 "+G.fmt(st.m);
+      var toast = document.getElementById("toast");
+      try { navigator.clipboard.writeText(t).then(function(){toast.textContent="결과를 복사했어요.";},function(){toast.textContent=t;}); }
+      catch(e){ toast.textContent = t; }
+    };
+    top();
+  }
+
+  renderIntro();
+})();
+</script>
+
+</body>
+</html>
